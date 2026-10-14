@@ -1,12 +1,29 @@
-export default function Home() {
-  return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <h1 className="text-4xl font-bold">OBLIVION</h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400">
-          Next.js + PostgreSQL + Prisma
-        </p>
-      </main>
-    </div>
-  );
+import FindingsDashboard from "@/app/components/FindingsDashboard";
+import { listRecentFindings } from "@/lib/sources";
+import type { Finding } from "@/lib/types";
+
+/**
+ * The dashboard.
+ *
+ * Rendered per request (`force-dynamic`) so the initial rows always come fresh
+ * from PostgreSQL — the page works even before the SSE stream connects, and
+ * works at all if the browser has no EventSource. Live updates are layered on
+ * top by the client component.
+ */
+
+export const dynamic = "force-dynamic";
+
+export default async function Home() {
+  let initialFindings: Finding[] = [];
+  let loadError: string | null = null;
+
+  try {
+    initialFindings = await listRecentFindings(50);
+  } catch (err) {
+    // A dead database must not blank the page: render the shell plus the error
+    // so the operator can see what is wrong.
+    loadError = err instanceof Error ? err.message : String(err);
+  }
+
+  return <FindingsDashboard initialFindings={initialFindings} loadError={loadError} />;
 }
