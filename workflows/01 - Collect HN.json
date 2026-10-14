@@ -72,6 +72,52 @@
     },
     {
       "parameters": {
+        "jsCode": "// Aggregate every transformed finding into ONE item so the HTTP Request node\n// below runs exactly once and sends the whole batch in a single authenticated\n// request. `$workflow.id` / `$execution.id` travel with the batch as\n// provenance so every stored row can be traced back to this run.\nconst items = $input.all().map((item) => item.json);\n\nreturn [\n  {\n    json: {\n      workflow_id: $workflow.id,\n      execution_id: $execution.id,\n      items,\n    },\n  },\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        -192
+      ],
+      "id": "a7d1e4b2-5c93-4f18-8e0a-6b2c9d4f1a01",
+      "name": "Build ingestion payload"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.OBLIVION_INGEST_URL }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-n8n-secret",
+              "value": "={{ $env.N8N_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        896,
+        -192
+      ],
+      "id": "a7d1e4b2-5c93-4f18-8e0a-6b2c9d4f1a02",
+      "name": "POST findings to OBLIVION",
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 2000,
+      "notes": "Sends the batch to the Next.js ingestion API, which persists it to PostgreSQL and publishes a realtime event. Authenticates with the shared secret from the n8n container's N8N_WEBHOOK_SECRET env var. Retries are bounded (3 tries) and safe because the endpoint is idempotent on external_id."
+    },
+    {
+      "parameters": {
         "schema": {
           "__rl": true,
           "value": "public",
@@ -203,11 +249,13 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.7,
       "position": [
-        704,
+        640,
         144
       ],
       "id": "2c7e5610-1536-4b68-996d-4761228a1893",
       "name": "Insert rows in a table",
+      "disabled": true,
+      "notes": "DISABLED — superseded by the ingestion API. Kept (disabled) as a rollback path and as documentation of the original direct-insert parameters. Do not re-enable it alongside the HTTP Request node: this node would insert the row first, the API would then see it as a duplicate and skip the realtime event, and the dashboard would not update live.",
       "credentials": {
         "postgres": {
           "id": "yAMPHvXWamEuyhP0",
@@ -240,22 +288,33 @@
         ]
       ]
     },
-    "Code in JavaScript": {
+    "Split Out": {
       "main": [
         [
           {
-            "node": "Insert rows in a table",
+            "node": "Code in JavaScript",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Split Out": {
+    "Code in JavaScript": {
       "main": [
         [
           {
-            "node": "Code in JavaScript",
+            "node": "Build ingestion payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build ingestion payload": {
+      "main": [
+        [
+          {
+            "node": "POST findings to OBLIVION",
             "type": "main",
             "index": 0
           }
@@ -268,7 +327,7 @@
     "executionOrder": "v1",
     "binaryMode": "separate"
   },
-  "versionId": "627ddad3-6b1f-4db0-b453-79279728d7cd",
+  "versionId": "8f2b7c14-9a3d-4e61-b0f5-2d7a4c8e6b93",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "a032cafc60f7afb46ad2e984b8b298691de0c0d7d5c524617f1ad6a0981a63cc"
