@@ -9,7 +9,7 @@
     "lint": "eslint",
     "db:migrate": "node --env-file=.env scripts/migrate.mjs",
     "db:seed-mock": "node --env-file=.env scripts/send-mock-results.mjs",
-    "test": "node --env-file=.env --test tests/"
+    "test": "node --env-file=.env --test tests/*.test.mjs"
   },
   "dependencies": {
     "next": "16.4.0",
